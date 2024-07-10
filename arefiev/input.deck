@@ -1,0 +1,140 @@
+begin:constant
+  part = 64
+
+  freql = 10e9
+  lambdal = c / freql
+  kl = 2.0 * pi / lambdal
+  omegal = 2.0 * pi * freql
+  tl = 2.0 * pi / omegal
+  fce = 7e9
+  wce = 2.0 * pi * fce
+  B0 = me * wce / qe
+
+  n_crit = critical(omegal)
+
+  theta = asin(sqrt(freql) / sqrt(freql + fce))
+
+  lambda_x = lambdal * sin(theta)
+  kx = 2.0 * pi / lambda_x
+  lambday = lambdal * cos(theta)
+
+  yb1 = 0.1
+  yb2 = 0.95
+  yL = 0.28
+  yR = 0.78
+  y1 = 0.1
+  y2 = 0.6
+  yl = 1.0
+end:constant
+
+
+begin:control
+  nx = 64
+  ny = 2048
+
+  # Final time of simulation
+  t_end = 64 / freql
+
+  # Size of domain
+  x_min = 0.0
+  x_end = lambda_x
+
+  y_min = 0.0
+  y_max = yl
+
+  stdout_frequency = 128
+end:control
+
+
+begin:fields
+  bx = B0
+end:fields
+
+
+begin:laser
+  boundary = y_min
+  amp = 8.0e5
+  omega = omegal
+  lambda = lambday
+  pol_angle = theta
+  phase = -kx * x
+  t_profile = if (t * freql lt 1, t * freql, 1)
+  profile = 1
+end:laser
+
+
+begin:boundaries
+  bc_x_min = periodic
+  bc_x_max = periodic
+  bc_y_min = simple_laser
+  bc_y_max = simple_outflow
+end:boundaries
+
+
+begin:species
+  # Electron
+  name = electron
+  charge = -1.0
+  mass = 1.0
+  nparticles = nx * ny * part
+
+#  density = if (y lt yb1, n_min,
+#    if ((yb1 lt y) and (y lt yL), 4 * (y - yb1) / yl,
+#    if ((yL lt y) and (y lt yR), 0.72,
+#    if ((yR lt y) and (y lt yb2), 4 * (y - y2) / yl,
+#    if (y gt yb2, n_min, 0.0)))))
+#  density_min = 0.0001 * n_crit
+#  density_max = n_crit
+  density = (((yb1 lt y) and (y lt yL)) * 4 * (y - yb1) / yl + ((yL lt y) and (y lt yR)) * 0.72 + ((yR lt y) and (y lt yb2)) * 4 * (y - y2) / yl) * n_crit
+
+  temperature_ev = 950
+end:species
+
+
+begin:species
+  # Protons
+  name = proton
+  charge = 1.0
+  mass = 1836.2 * 2
+  nparticles = nx * ny * part
+
+  number_density = number_density(electron)
+#  number_density_min = 0.0001 * n_crit
+#  number_density_max = 1.2 * n_crit
+
+  temperature_ev = 1
+end:species
+
+
+begin:output
+  name = normal
+
+  # Simulated time between output dumps
+  dt_snapshot = 1 / freql
+
+  # Properties at particle positions
+  particles = always
+  px = always
+  particle_weight = always
+
+  # Properties on grid
+  grid = always
+  ex = always
+  ey = always
+  ez = always
+  bx = always
+  by = always
+  bz = always
+  jx = always
+  jy = always
+  jz = always
+  average_particle_energy = always + species
+  mass_density = never + species
+  charge_density = always # + average + snapshot
+  number_density = always + species
+  temperature = never + species
+
+  # Extended io
+  distribution_functions = always
+end:output
+

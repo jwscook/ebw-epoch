@@ -1,0 +1,155 @@
+begin:constant
+  part = 128
+
+  freql = 140e9
+  lambdal = c / freql
+  kl = 2.0 * pi / lambdal
+  omegal = 2.0 * pi * freql
+  tl = 2.0 * pi / omegal
+  B0 = 2.5
+  wce = qe * B0 / me
+  fce = abs(wce / 2 / pi)
+
+  n_crit = critical(omegal)
+  n_min = n_crit / 10000
+
+  theta = asin(sqrt(freql / (freql + fce)))
+
+  lambdax = lambdal * sin(theta)
+  kx = 2.0 * pi / lambdax
+  lambday = lambdal * cos(theta)
+
+  Ln = 1 / 15
+  yl = Ln * 4
+
+  xl = lambdax * 128
+
+  duration = 10 * yl / c
+
+  NX = xl / lambdax * 4
+  NY = yl / lambday * 4
+
+  dtc = dy / c * 0.95
+  dtf = 1 / freql / 4
+  dtratio = dtf / dtc
+
+  dt_mul = if (dtratio lt 0.95, dtratio, 0.95)
+  dt_snap = dy / c * 4
+end:constant
+
+
+begin:control
+  nx = NX
+  ny = NY
+
+  # Final time of simulation
+  t_end = duration
+
+  # Size of domain
+  x_min = 0.0
+  x_end = xl
+
+  y_min = -lambday * 4
+  y_max = yl
+
+  dt_multiplier = dt_mul
+  stdout_frequency = 4192
+end:control
+
+
+begin:fields
+  bx = B0
+end:fields
+
+
+begin:laser
+  boundary = y_min
+  amp = 8.0e8
+  omega = omegal
+  lambda = lambday
+  pol_angle = theta
+  phase = -kx * x
+  t_profile = if (t * freql lt 1, t * freql, 1)
+  profile = gauss(x, 4 * lambdax, lambdax)
+end:laser
+
+
+begin:boundaries
+  bc_x_min = periodic
+  bc_x_max = periodic
+  bc_y_min = simple_laser
+  bc_y_max = cpml_outflow
+end:boundaries
+
+
+begin:species
+  # Electron
+  name = electron
+  charge = -1.0
+  mass = 1.0
+  nparticles = nx * ny * part
+
+#  density = if (y lt yb1, n_min,
+#    if ((yb1 lt y) and (y lt yL), 4 * (y - yb1) / yl,
+#    if ((yL lt y) and (y lt yR), 0.72,
+#    if ((yR lt y) and (y lt yb2), 4 * (y - y2) / yl,
+#    if (y gt yb2, n_min, 0.0)))))
+#  density_min = 0.0001 * n_crit
+#  density_max = n_crit
+
+  density = if (y * n_crit / Ln gt 2 * n_crit, y * n_crit / Ln, 2 * n_crit)
+  density_min = 0.0
+
+  temperature_ev = 950
+end:species
+
+
+begin:species
+  # Protons
+  name = proton
+  charge = 1.0
+  mass = 1836.2 * 2
+  nparticles = nx * ny * part
+
+  number_density = number_density(electron)
+#  number_density_min = 0.0001 * n_crit
+#  number_density_max = 1.2 * n_crit
+
+  temperature_ev = 1
+end:species
+
+
+begin:output
+  name = normal
+
+  # Simulated time between output dumps
+  dt_snapshot = dt_snap
+
+  # Properties at particle positions
+  particles = never
+  px = never
+  particle_weight = never
+
+  # Properties on grid
+  grid = always
+  ex = always
+  ey = always
+  ez = always
+#  bx = always
+#  by = always
+#  bz = always
+#  jx = always
+#  jy = always
+#  jz = always
+  average_particle_energy = always + species
+#  mass_density = never + species
+  charge_density = always + species # + average + snapshot
+#  number_density = always + species
+#  temperature = never + species
+
+  # Extended io
+  distribution_functions = always
+end:output
+
+
+
